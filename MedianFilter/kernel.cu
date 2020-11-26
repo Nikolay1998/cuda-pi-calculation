@@ -13,7 +13,7 @@ using namespace std;
 #define BLOCKS 256
 #define THREADS 256
 
-__global__ void gpuPiCalculate(float* estimate, curandState* states) {
+__global__ void gpuPiCalculate(float* localResult, curandState* states) {
 	unsigned long id = threadIdx.x + blockDim.x * blockIdx.x;
 	int V = 0;
 	float x, y;
@@ -23,9 +23,11 @@ __global__ void gpuPiCalculate(float* estimate, curandState* states) {
 	for (int i = 0; i < N; i++) {
 		x = curand_uniform(&states[id]);
 		y = curand_uniform(&states[id]);
-		V += (x * x + y * y <= 1.0f);
+		if (x * x + y * y < 1.0f) {
+			V++;
+		}
 	}
-	estimate[id] = 4.0f * V / (float)N;
+	localResult[id] = 4.0f * V / (float)N;
 }
 
 float cpuPiCalculate(long n) {
@@ -50,7 +52,7 @@ int main(int argc, char* argv[]) {
 	cudaMalloc((void**)&dev, BLOCKS * THREADS * sizeof(float));
 	cudaMalloc((void**)&devStates, THREADS * BLOCKS * sizeof(curandState));
 
-	gpuPiCalculate <<<BLOCKS, THREADS >>> (dev, devStates);
+	gpuPiCalculate <<< BLOCKS, THREADS >>> (dev, devStates);
 
 	cudaMemcpy(host, dev, BLOCKS * THREADS * sizeof(float), cudaMemcpyDeviceToHost);
 	float gpuPI = 0;
